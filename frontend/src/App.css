@@ -1,34 +1,82 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Game-specific styles */
+.game-timer {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.multiplier-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.balance-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-.App-link {
-    color: #61dafb;
+/* Card suits colors */
+.suit-hearts, .suit-diamonds { color: #ef4444; }
+.suit-clubs, .suit-spades { color: hsl(var(--foreground)); }
+
+/* Color bet buttons */
+.bet-btn-red {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  color: white;
+}
+.bet-btn-green {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: white;
+}
+.bet-btn-violet {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  color: white;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+/* Aviator curve */
+.aviator-curve {
+  background: linear-gradient(180deg, transparent 0%, rgba(212,175,55,0.1) 100%);
+}
+
+/* Dice faces */
+.dice {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Playing card */
+.playing-card {
+  width: 60px;
+  height: 84px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  transition: transform 0.3s ease;
+}
+.playing-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Result dots */
+.result-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
 }
