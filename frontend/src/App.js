@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
@@ -19,6 +19,7 @@ import './App.css';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -26,8 +27,8 @@ function ProtectedRoute({ children, adminOnly = false }) {
       </div>
     );
   }
-  if (!user || user === false) return <Navigate to="/login" />;
-  if (adminOnly && user.role !== 'admin') return <Navigate to="/" />;
+  if (!user || user === false) return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  if (adminOnly && user.role !== 'admin') return <Navigate to="/" replace />;
   return children;
 }
 

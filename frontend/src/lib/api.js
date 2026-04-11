@@ -18,7 +18,8 @@ API.interceptors.response.use(
         return API(err.config);
       } catch {
         if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-          window.location.href = '/login';
+          const currentPath = window.location.pathname;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
         }
       }
     }

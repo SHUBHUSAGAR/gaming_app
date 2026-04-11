@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { formatApiError } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -14,8 +14,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/';
 
-  if (user && user !== false) return <Navigate to="/" />;
+  if (user && user !== false) return <Navigate to={redirectTo} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
