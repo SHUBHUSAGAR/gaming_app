@@ -1,0 +1,151 @@
+{
+  "theme": "dark_and_light",
+  "primary_archetype": "5 (Jewel & Luxury)",
+  "design_philosophy": "A high-end, immersive real-money casino gaming experience tailored for mobile-first users. Focus on high-contrast numeric displays, rich jewel tones, and tactile glassmorphic surfaces to convey trust, excitement, and premium quality.",
+  "colors": {
+    "dark": {
+      "background": "#070A11",
+      "surface": "#0D1322",
+      "surface_hover": "#131C30",
+      "text_primary": "#F1F3F9",
+      "text_secondary": "#A1A9C3",
+      "primary": "#D4AF37",
+      "primary_hover": "#F0C847",
+      "primary_foreground": "#000000",
+      "success": "#1C7C54",
+      "danger": "#B61717",
+      "border": "rgba(255,255,255,0.1)",
+      "ring": "rgba(212,175,55,0.5)"
+    },
+    "light": {
+      "background": "#F4F6F9",
+      "surface": "#FFFFFF",
+      "surface_hover": "#F0F2F6",
+      "text_primary": "#0A0D14",
+      "text_secondary": "#5C657A",
+      "primary": "#B38E22",
+      "primary_hover": "#947416",
+      "primary_foreground": "#FFFFFF",
+      "success": "#166442",
+      "danger": "#961313",
+      "border": "rgba(0,0,0,0.08)",
+      "ring": "rgba(179,142,34,0.5)"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "headings": "Outfit, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-medium",
+      "h4": "text-lg font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-secondary",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em]",
+      "numbers_timers": "font-mono font-bold tracking-tighter"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-4 sm:p-6 lg:p-8",
+    "bento_grid": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6",
+    "game_grid": "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4",
+    "radius": {
+      "sm": "rounded-sm",
+      "md": "rounded-md",
+      "lg": "rounded-xl",
+      "full": "rounded-full"
+    }
+  },
+  "surfaces_and_effects": {
+    "glass_header": "backdrop-blur-xl bg-opacity-70 border-b border-border/10",
+    "card_default": "bg-surface border border-border shadow-sm transition-all duration-200",
+    "card_hover": "hover:-translate-y-1 hover:shadow-lg hover:border-primary/50",
+    "button_primary": "bg-primary text-primary_foreground font-semibold shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all",
+    "neon_glow_success": "drop-shadow-[0_0_8px_rgba(28,124,84,0.6)]",
+    "neon_glow_danger": "drop-shadow-[0_0_8px_rgba(182,23,23,0.6)]"
+  },
+  "components": {
+    "navigation": "Sticky top-0 z-50 glass header. Mobile: Bottom navigation bar for quick access to Lobby, Games, Wallet, Profile. Desktop: Top navigation with logo, main links, balance, and user dropdown.",
+    "buttons": "Shadcn based, extended with glowing shadows for primary actions (Deposit, Play). Rounded-md for a structured, trusted tech feel.",
+    "inputs": "Shadcn based. Background matches surface, 1px border. On focus, ring with primary color. High contrast text.",
+    "tables": "Shadcn based. Used for game history and admin panel. Grid borders style: subtle right and bottom borders. Mono font for numeric columns (amounts, multipliers, round IDs).",
+    "charts": "Shadcn/Recharts. Used for Aviator multiplier curves and Admin revenue trends. Use primary (gold) and danger (red) colors for chart lines.",
+    "modals": "Shadcn dialog. Glassmorphism backdrop (bg-black/60 backdrop-blur-sm). Dialog box has solid surface bg to prevent content refraction."
+  },
+  "animations": {
+    "hover_states": "transform transition-all duration-200 ease-out",
+    "page_transitions": "Framer Motion: fade-in and slight slide-up (y: 10 to 0) for smooth entry.",
+    "game_timers": "Pulse animation on the last 5 seconds of Win Go timer. Progress bar for betting phases.",
+    "toast_notifications": "Sonner with dark/light theme matching, entering from bottom-right."
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "style": "Duotone for active menu items, Regular for inactive. Weight: 1.5px for crispness."
+  },
+  "media": {
+    "images": [
+      {
+        "category": "hero_background",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/ff90c15655af03cfb2216479a383c76a8d3a57523141096dff1f22e7a22b9156.png",
+        "description": "Luxurious abstract deep midnight blue background with sweeping gold and emerald particles. Use for landing page hero section."
+      },
+      {
+        "category": "vip_badge",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/39eada88297534abdd844e35ec8aa4199025b22c82d92d7209597194dbe31d12.png",
+        "description": "Ornate glowing gold crown with emerald gem. Use for VIP rank tier display in profile and dashboard."
+      },
+      {
+        "category": "avatar_placeholder",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/35b0687b57fd1c0bb1f2edc847095ce975926d73c54f969029d851aa754ef471.png",
+        "description": "Sleek glowing golden mask avatar placeholder. Use for user profiles."
+      },
+      {
+        "category": "game_thumbnail",
+        "game_name": "Win Go",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/34aae1a20d9efb469d2b85a49ab2e9fe13e707baa6c1c62d029513e224cb9548.png",
+        "description": "Win Go color prediction game cover. Dark rich background with glowing green, red, violet spheres."
+      },
+      {
+        "category": "game_thumbnail",
+        "game_name": "Andar Bahar",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/a085bdd19c7773da1d009a4b7c67928b695b925bcf28875e561fb3b71b7df593.png",
+        "description": "AB Fun Andar Bahar card game cover. Floating elegant playing cards over green velvet."
+      },
+      {
+        "category": "game_thumbnail",
+        "game_name": "Aviator",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/eeba13d92c4c79e9977ff0e118e2697f2a08ff5ef628ea2337a876ff5e5a9a1f.png",
+        "description": "Aviator crash game cover. Red 3D helicopter flying upwards with ascending neon graph line."
+      },
+      {
+        "category": "game_thumbnail",
+        "game_name": "Lucky Hit",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/2cd47b3a5e1a2d9a5119f214df6358daefe4fb96ada74927c04d7c4ea00301fd.png",
+        "description": "Lucky Hit card comparison game cover. Glowing playing cards clashing with golden sparks."
+      },
+      {
+        "category": "game_thumbnail",
+        "game_name": "Soccer Go",
+        "url": "https://static.prod-images.emergentagent.com/jobs/84c54715-40c5-4abb-91e0-a509c17d56ac/images/c9986213ccd76c492658ab207e98d3c4140ed50286c80018a700893074d170ff.png",
+        "description": "Soccer Go dice game cover. Glowing dice with football texture on miniature stadium turf."
+      }
+    ]
+  },
+  "accessibility_and_testing": {
+    "contrast_strategy": "Maintain 4.5:1 ratio minimum for text on interactive elements. Dark mode uses light text; light mode uses dark text.",
+    "testing_attributes": "All interactive elements MUST have data-testid attributes (e.g., data-testid='login-button', data-testid='bet-red-button').",
+    "focus_states": "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+  },
+  "instructions_to_main_agent": [
+    "Install required dependencies: framer-motion, @phosphor-icons/react, sonner, recharts, @radix-ui/react-icons.",
+    "Setup Tailwind config to use the defined custom colors as CSS variables to easily support both dark and light modes via a 'dark' class on the HTML/Body element.",
+    "Use JetBrains Mono specifically for wallet balance, active game timers, and multipliers to ensure fixed-width numerical stability.",
+    "Implement game grids using responsive bento layouts. Give game cards 'group' class to trigger child image zoom on hover (overflow-hidden).",
+    "For the Aviator game UI, use a responsive chart component (Recharts or Canvas) with a dynamically curving line mimicking the helicopter's ascent.",
+    "Ensure all user actions (deposit, withdraw, bet placement) are clearly separated visually from purely informational areas."
+  ]
+}
