@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 
 const NAV = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'monitor', label: 'Live Monitor', icon: Activity },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'games', label: 'Game Controls', icon: Gamepad2 },
@@ -81,6 +82,7 @@ export default function AdminDashboard() {
       <main className="flex-1 overflow-y-auto bg-background">
         <div className="p-5 lg:p-8 max-w-[1400px]">
           {section === 'overview' && <OverviewSection />}
+          {section === 'monitor' && <MonitorSection />}
           {section === 'users' && <UsersSection />}
           {section === 'payments' && <PaymentsSection />}
           {section === 'games' && <GamesSection />}
@@ -700,6 +702,62 @@ function SettingsSection() {
                 <Button size="sm" variant="destructive" className="h-8" disabled>Purge Transactions</Button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============ LIVE MONITOR ============ */
+function MonitorSection() {
+  const [data, setData] = useState(null);
+  const load = useCallback(async () => {
+    try { const { data: d } = await API.get('/admin/monitor'); setData(d); } catch {}
+  }, []);
+  useEffect(() => { load(); const i = setInterval(load, 5000); return () => clearInterval(i); }, [load]);
+  if (!data) return <LoadingSkeleton />;
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="font-heading text-2xl font-bold tracking-tight flex items-center gap-2">
+          <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span>
+          Live Monitor
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Auto-refreshing every 5 seconds</p>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { l: 'Active Users (30min)', v: data.active_users, color: 'from-emerald-600/20 to-emerald-600/5', icon: Users, iconColor: 'text-emerald-400' },
+          { l: 'Today Bets', v: data.today_bets, color: 'from-blue-600/20 to-blue-600/5', icon: Gamepad2, iconColor: 'text-blue-400' },
+          { l: 'Today Deposits', v: data.today_deposits, color: 'from-amber-600/20 to-amber-600/5', icon: CreditCard, iconColor: 'text-amber-400' },
+          { l: 'Today Revenue', v: formatINR(data.today_revenue), color: 'from-rose-600/20 to-rose-600/5', icon: TrendingUp, iconColor: 'text-rose-400' },
+        ].map((s, i) => (
+          <div key={i} className={`rounded-2xl bg-gradient-to-br ${s.color} border border-border/30 p-5`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.l}</p>
+                <p className="font-mono text-3xl font-bold mt-2">{s.v}</p>
+              </div>
+              <div className={`w-10 h-10 rounded-xl bg-background/50 flex items-center justify-center ${s.iconColor}`}><s.icon className="w-5 h-5" /></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-border/30 bg-card/50 p-5">
+          <h3 className="font-heading font-semibold text-sm mb-3">Win Go Status</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Current Round</span><span className="font-mono font-bold">#{data.wingo_round}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Mode</span><span>4 modes running (30s, 60s, 3min, 5min)</span></div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/30 bg-card/50 p-5">
+          <h3 className="font-heading font-semibold text-sm mb-3">Aviator Status</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Current Round</span><span className="font-mono font-bold">#{data.aviator_round}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Phase</span><Badge variant={data.aviator_phase === 'flying' ? 'default' : 'secondary'} className="capitalize text-xs">{data.aviator_phase}</Badge></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Multiplier</span><span className="font-mono font-bold text-primary">{data.aviator_multiplier?.toFixed(2)}x</span></div>
           </div>
         </div>
       </div>

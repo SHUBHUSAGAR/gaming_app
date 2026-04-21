@@ -488,7 +488,7 @@ class ConnectionManager:
 ws_manager = ConnectionManager()
 
 # Game State
-wingo_state = {"current_round": None, "round_number": 0, "betting_open": False}
+wingo_states = {mode: {"current_round": None, "round_number": 0, "betting_open": False} for mode in ["30s", "60s", "180s", "300s"]}
 aviator_state = {"phase": "waiting", "multiplier": 1.0, "crash_point": 0, "round_number": 0, "active_bets": {}}
 
 # ========================
@@ -515,20 +515,24 @@ async def list_games():
 
 # --- Win Go ---
 @api.get("/games/wingo/current")
-async def wingo_current():
-    return {"round": wingo_state["current_round"], "betting_open": wingo_state["betting_open"]}
+async def wingo_current(mode: str = "60s"):
+    state = wingo_states.get(mode, wingo_states["60s"])
+    return {"round": state["current_round"], "betting_open": state["betting_open"], "mode": mode}
 
 @api.get("/games/wingo/history")
-async def wingo_history(limit: int = 20):
+async def wingo_history(limit: int = 20, mode: str = "60s"):
     rounds = await db.game_rounds.find(
-        {"game": "wingo", "status": "completed"}, {"_id": 0}
+        {"game": "wingo", "status": "completed", "mode": mode}, {"_id": 0}
     ).sort("created_at", -1).limit(limit).to_list(limit)
+    if not rounds:
+        rounds = await db.game_rounds.find({"game": "wingo", "status": "completed"}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
     return {"rounds": rounds}
 
 @api.post("/games/wingo/bet")
-async def wingo_bet(req: BetRequest, request: Request):
+async def wingo_bet(req: BetRequest, request: Request, mode: str = "60s"):
     user = await get_current_user(request)
-    if not wingo_state["betting_open"]:
+    state = wingo_states.get(mode, wingo_states["60s"])
+    if not state["betting_open"]:
         raise HTTPException(status_code=400, detail="Betting is closed")
     if req.amount < 10 or req.amount > 10000:
         raise HTTPException(status_code=400, detail="Bet must be 10-10000")
@@ -539,7 +543,7 @@ async def wingo_bet(req: BetRequest, request: Request):
     bet = {
         "id": str(uuid.uuid4()), "user_id": user["_id"], "game": "wingo",
         "round_id": req.round_id, "bet_type": req.bet_type, "bet_value": req.bet_value,
-        "amount": req.amount, "status": "pending", "winnings": 0,
+        "amount": req.amount, "status": "pending", "winnings": 0, "mode": mode,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.bets.insert_one(bet)
@@ -936,17 +940,249 @@ async def pending_withdrawals(request: Request):
     return {"withdrawals": txns}
 
 # ========================
+# LEADERBOARD
+# ========================
+@api.get("/leaderboard/{period}")
+async def get_leaderboard_period(period: str, limit: int = 20):
+    now = datetime.now(timezone.utc)
+    match = {}
+    if period == "daily":
+        match["created_at"] = {"$gte": now.replace(hour=0, minute=0, second=0).isoformat()}
+    elif period == "weekly":
+        match["created_at"] = {"$gte": (now - timedelta(days=7)).isoformat()}
+    pipeline = [{"$match": match}, {"$group": {"_id": "$user_id", "total_won": {"$sum": "$winnings"}, "total_bets": {"$sum": 1}, "total_wagered": {"$sum": "$amount"}}}, {"$sort": {"total_won": -1}}, {"$limit": limit}]
+    results = await db.bets.aggregate(pipeline).to_list(limit)
+    enriched = []
+    for r in results:
+        user = await db.users.find_one({"_id": ObjectId(r["_id"]) if ObjectId.is_valid(str(r["_id"])) else None}, {"password_hash": 0, "_id": 0})
+        if user:
+            enriched.append({**r, "name": user.get("name", "Anonymous"), "vip_tier": user.get("vip_tier", "bronze"), "rank": user.get("rank", "normal")})
+    return {"leaderboard": enriched, "period": period}
+
+@api.get("/leaderboard/game/{game_id}")
+async def get_game_leaderboard(game_id: str, limit: int = 20):
+    pipeline = [{"$match": {"game": game_id}}, {"$group": {"_id": "$user_id", "total_won": {"$sum": "$winnings"}, "total_bets": {"$sum": 1}}}, {"$sort": {"total_won": -1}}, {"$limit": limit}]
+    results = await db.bets.aggregate(pipeline).to_list(limit)
+    enriched = []
+    for r in results:
+        user = await db.users.find_one({"_id": ObjectId(r["_id"]) if ObjectId.is_valid(str(r["_id"])) else None}, {"password_hash": 0, "_id": 0})
+        if user:
+            enriched.append({**r, "name": user.get("name", "Anonymous")})
+    return {"leaderboard": enriched, "game": game_id}
+
+# ========================
+# DAILY BONUS & SPIN WHEEL
+# ========================
+DAILY_REWARDS = {1: 10, 2: 20, 3: 30, 4: 50, 5: 75, 6: 100, 7: 200}
+WHEEL_SEGMENTS = [5, 10, 20, 50, 100, 200, 500, 0]
+
+@api.get("/bonus/daily-status")
+async def daily_bonus_status(request: Request):
+    user = await get_current_user(request)
+    bonus = await db.daily_bonus.find_one({"user_id": user["_id"]}, {"_id": 0})
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not bonus:
+        return {"streak": 0, "claimed_today": False, "last_claim": None, "next_reward": DAILY_REWARDS[1], "spin_available": True, "rewards": DAILY_REWARDS}
+    claimed_today = bonus.get("last_claim_date") == today
+    streak = bonus.get("streak", 0)
+    next_day = min(streak + 1, 7) if not claimed_today else min(streak + 1, 7)
+    return {"streak": streak, "claimed_today": claimed_today, "last_claim": bonus.get("last_claim_date"), "next_reward": DAILY_REWARDS.get(next_day, 200), "spin_available": bonus.get("last_spin_date") != today, "rewards": DAILY_REWARDS}
+
+@api.post("/bonus/claim-daily")
+async def claim_daily_bonus(request: Request):
+    user = await get_current_user(request)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    bonus = await db.daily_bonus.find_one({"user_id": user["_id"]})
+    if bonus and bonus.get("last_claim_date") == today:
+        raise HTTPException(status_code=400, detail="Already claimed today")
+    streak = 1
+    if bonus and bonus.get("last_claim_date") == yesterday:
+        streak = min(bonus.get("streak", 0) + 1, 7)
+    elif bonus and bonus.get("last_claim_date") != yesterday:
+        streak = 1
+    reward = DAILY_REWARDS.get(streak, 200)
+    await db.daily_bonus.update_one({"user_id": user["_id"]}, {"$set": {"streak": streak, "last_claim_date": today, "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    await db.users.update_one({"_id": ObjectId(user["_id"])}, {"$inc": {"balance": reward}})
+    await check_achievements(user["_id"], "login_streak", streak)
+    return {"reward": reward, "streak": streak, "message": f"Day {streak} bonus: +{reward}"}
+
+@api.post("/bonus/spin-wheel")
+async def spin_wheel(request: Request):
+    user = await get_current_user(request)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    bonus = await db.daily_bonus.find_one({"user_id": user["_id"]})
+    if bonus and bonus.get("last_spin_date") == today:
+        raise HTTPException(status_code=400, detail="Already spun today")
+    segment_idx = random.randint(0, len(WHEEL_SEGMENTS) - 1)
+    prize = WHEEL_SEGMENTS[segment_idx]
+    await db.daily_bonus.update_one({"user_id": user["_id"]}, {"$set": {"last_spin_date": today}}, upsert=True)
+    if prize > 0:
+        await db.users.update_one({"_id": ObjectId(user["_id"])}, {"$inc": {"balance": prize}})
+    return {"segment": segment_idx, "prize": prize, "segments": WHEEL_SEGMENTS}
+
+# ========================
+# VIP SYSTEM
+# ========================
+VIP_TIERS = {
+    "bronze": {"min_deposit": 0, "bonus_pct": 0, "perks": ["Basic access"]},
+    "silver": {"min_deposit": 1000, "bonus_pct": 2, "perks": ["2% deposit bonus", "Priority support"]},
+    "gold": {"min_deposit": 5000, "bonus_pct": 5, "perks": ["5% deposit bonus", "Priority withdrawal", "Weekly cashback"]},
+    "diamond": {"min_deposit": 20000, "bonus_pct": 10, "perks": ["10% deposit bonus", "Instant withdrawal", "Weekly cashback", "Exclusive games"]},
+}
+
+@api.get("/vip/status")
+async def vip_status(request: Request):
+    user = await get_current_user(request)
+    deposited = user.get("total_deposited", 0)
+    current_tier = "bronze"
+    for tier, info in VIP_TIERS.items():
+        if deposited >= info["min_deposit"]:
+            current_tier = tier
+    next_tier = {"bronze": "silver", "silver": "gold", "gold": "diamond", "diamond": None}.get(current_tier)
+    next_deposit = VIP_TIERS[next_tier]["min_deposit"] - deposited if next_tier else 0
+    if current_tier != user.get("vip_tier"):
+        await db.users.update_one({"_id": ObjectId(user["_id"])}, {"$set": {"vip_tier": current_tier}})
+    return {"current_tier": current_tier, "tiers": VIP_TIERS, "total_deposited": deposited, "next_tier": next_tier, "deposit_needed": max(0, next_deposit)}
+
+# ========================
+# ACHIEVEMENTS
+# ========================
+ACHIEVEMENT_DEFS = [
+    {"id": "first_deposit", "name": "First Deposit", "desc": "Make your first deposit", "icon": "wallet"},
+    {"id": "first_win", "name": "First Win", "desc": "Win your first bet", "icon": "trophy"},
+    {"id": "ten_wins", "name": "10x Winner", "desc": "Win 10 bets", "icon": "star"},
+    {"id": "big_winner", "name": "Big Winner", "desc": "Win 1000+ in a single bet", "icon": "zap"},
+    {"id": "streak_7", "name": "7-Day Streak", "desc": "Login 7 days in a row", "icon": "flame"},
+    {"id": "high_roller", "name": "High Roller", "desc": "Wager 10000+ total", "icon": "trending-up"},
+    {"id": "vip_silver", "name": "VIP Silver", "desc": "Reach Silver VIP tier", "icon": "award"},
+    {"id": "vip_gold", "name": "VIP Gold", "desc": "Reach Gold VIP tier", "icon": "crown"},
+]
+
+async def check_achievements(user_id: str, trigger: str, value=None):
+    existing = await db.achievements.find({"user_id": user_id}, {"_id": 0}).to_list(50)
+    earned_ids = {a["achievement_id"] for a in existing}
+    new_badges = []
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return
+    if "first_deposit" not in earned_ids and user.get("total_deposited", 0) > 0:
+        new_badges.append("first_deposit")
+    if "first_win" not in earned_ids and user.get("total_won", 0) > 0:
+        new_badges.append("first_win")
+    won_count = await db.bets.count_documents({"user_id": user_id, "status": "won"})
+    if "ten_wins" not in earned_ids and won_count >= 10:
+        new_badges.append("ten_wins")
+    if "high_roller" not in earned_ids and user.get("total_wagered", 0) >= 10000:
+        new_badges.append("high_roller")
+    if trigger == "login_streak" and value and value >= 7 and "streak_7" not in earned_ids:
+        new_badges.append("streak_7")
+    if trigger == "big_win" and value and value >= 1000 and "big_winner" not in earned_ids:
+        new_badges.append("big_winner")
+    if "vip_silver" not in earned_ids and user.get("vip_tier") in ("silver", "gold", "diamond"):
+        new_badges.append("vip_silver")
+    if "vip_gold" not in earned_ids and user.get("vip_tier") in ("gold", "diamond"):
+        new_badges.append("vip_gold")
+    for badge_id in new_badges:
+        await db.achievements.insert_one({"user_id": user_id, "achievement_id": badge_id, "earned_at": datetime.now(timezone.utc).isoformat()})
+
+@api.get("/achievements")
+async def get_achievements(request: Request):
+    user = await get_current_user(request)
+    await check_achievements(user["_id"], "check")
+    earned = await db.achievements.find({"user_id": user["_id"]}, {"_id": 0}).to_list(50)
+    earned_ids = {a["achievement_id"]: a["earned_at"] for a in earned}
+    result = []
+    for defn in ACHIEVEMENT_DEFS:
+        result.append({**defn, "earned": defn["id"] in earned_ids, "earned_at": earned_ids.get(defn["id"])})
+    return {"achievements": result}
+
+# ========================
+# LIVE FEED (RECENT BIG WINS)
+# ========================
+@api.get("/live-feed")
+async def get_live_feed(limit: int = 15):
+    big_wins = await db.bets.find({"status": "won", "winnings": {"$gt": 0}}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    enriched = []
+    for b in big_wins:
+        user = await db.users.find_one({"_id": ObjectId(b["user_id"]) if ObjectId.is_valid(str(b["user_id"])) else None}, {"name": 1, "_id": 0})
+        name = user.get("name", "Player") if user else "Player"
+        masked = name[:3] + "***" if len(name) > 3 else name
+        enriched.append({"game": b.get("game", ""), "player": masked, "amount": b.get("winnings", 0), "bet": b.get("amount", 0), "time": b.get("created_at", "")})
+    return {"feed": enriched}
+
+# ========================
+# TERMS & CONDITIONS
+# ========================
+@api.get("/terms/status")
+async def terms_status(request: Request):
+    user = await get_current_user(request)
+    return {"accepted": user.get("terms_accepted", False)}
+
+@api.post("/terms/accept")
+async def accept_terms(request: Request):
+    user = await get_current_user(request)
+    await db.users.update_one({"_id": ObjectId(user["_id"])}, {"$set": {"terms_accepted": True, "terms_accepted_at": datetime.now(timezone.utc).isoformat()}})
+    return {"message": "Terms accepted"}
+
+# ========================
+# BET LIMITS (SELF-CONTROL)
+# ========================
+@api.get("/settings/bet-limits")
+async def get_bet_limits(request: Request):
+    user = await get_current_user(request)
+    limits = await db.bet_limits.find_one({"user_id": user["_id"]}, {"_id": 0})
+    return {"limits": limits or {"daily_limit": 0, "weekly_limit": 0, "enabled": False}}
+
+@api.post("/settings/bet-limits")
+async def set_bet_limits(request: Request, daily_limit: float = Body(0), weekly_limit: float = Body(0), enabled: bool = Body(False)):
+    user = await get_current_user(request)
+    await db.bet_limits.update_one({"user_id": user["_id"]}, {"$set": {"daily_limit": daily_limit, "weekly_limit": weekly_limit, "enabled": enabled, "user_id": user["_id"]}}, upsert=True)
+    return {"message": "Bet limits updated"}
+
+# ========================
+# ADMIN REAL-TIME MONITOR
+# ========================
+@api.get("/admin/monitor")
+async def admin_monitor(request: Request):
+    await get_admin_user(request)
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0).isoformat()
+    active_users = await db.users.count_documents({"last_login": {"$gte": (now - timedelta(minutes=30)).isoformat()}})
+    today_bets = await db.bets.count_documents({"created_at": {"$gte": today_start}})
+    today_deposits = await db.wallet_transactions.count_documents({"type": "deposit", "created_at": {"$gte": today_start}})
+    today_revenue_pipeline = [{"$match": {"created_at": {"$gte": today_start}, "status": "lost"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}}}]
+    rev = await db.bets.aggregate(today_revenue_pipeline).to_list(1)
+    today_revenue = rev[0]["total"] if rev else 0
+    wingo_round = wingo_states.get("60s", {}).get("round_number", 0)
+    aviator_round = aviator_state.get("round_number", 0)
+    return {
+        "active_users": active_users, "today_bets": today_bets, "today_deposits": today_deposits,
+        "today_revenue": round(today_revenue, 2),
+        "wingo_round": wingo_round, "aviator_round": aviator_round,
+        "aviator_phase": aviator_state.get("phase", "waiting"),
+        "aviator_multiplier": aviator_state.get("multiplier", 1.0),
+    }
+
+# ========================
+# WIN GO MULTI-MODE
+# ========================
+WINGO_MODES = {"30s": 25, "60s": 55, "180s": 175, "300s": 295}
+
+# ========================
 # WEBSOCKET ENDPOINTS
 # ========================
 @app.websocket("/api/ws/wingo")
-async def wingo_ws(ws: WebSocket):
-    await ws_manager.connect(ws, "wingo")
+async def wingo_ws(ws: WebSocket, mode: str = "60s"):
+    channel = f"wingo_{mode}"
+    await ws_manager.connect(ws, channel)
+    state = wingo_states.get(mode, wingo_states["60s"])
     try:
-        await ws.send_json({"type": "state", "round": wingo_state["current_round"], "betting_open": wingo_state["betting_open"]})
+        await ws.send_json({"type": "state", "round": state["current_round"], "betting_open": state["betting_open"], "mode": mode})
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
-        ws_manager.disconnect(ws, "wingo")
+        ws_manager.disconnect(ws, channel)
 
 @app.websocket("/api/ws/aviator")
 async def aviator_ws(ws: WebSocket):
@@ -963,32 +1199,41 @@ async def aviator_ws(ws: WebSocket):
 # ========================
 async def wingo_loop():
     await asyncio.sleep(3)
+    for mode, bet_secs in WINGO_MODES.items():
+        asyncio.create_task(wingo_mode_loop(mode, bet_secs))
+
+async def wingo_mode_loop(mode, betting_seconds):
+    state = wingo_states[mode]
+    channel = f"wingo_{mode}"
+    pause = max(3, betting_seconds // 10)
     while True:
         try:
-            wingo_state["round_number"] += 1
+            state["round_number"] += 1
             round_id = str(uuid.uuid4())[:12]
-            wingo_state["current_round"] = {"id": round_id, "round_number": wingo_state["round_number"], "status": "betting", "betting_seconds": 55}
-            wingo_state["betting_open"] = True
-            await ws_manager.broadcast("wingo", {"type": "round_start", "round_id": round_id, "round_number": wingo_state["round_number"], "betting_seconds": 55})
-            await asyncio.sleep(50)
-            await ws_manager.broadcast("wingo", {"type": "closing", "round_id": round_id, "seconds_left": 5})
-            await asyncio.sleep(5)
-            wingo_state["betting_open"] = False
+            state["current_round"] = {"id": round_id, "round_number": state["round_number"], "status": "betting", "betting_seconds": betting_seconds, "mode": mode}
+            state["betting_open"] = True
+            await ws_manager.broadcast(channel, {"type": "round_start", "round_id": round_id, "round_number": state["round_number"], "betting_seconds": betting_seconds, "mode": mode})
+            close_warn = max(5, betting_seconds // 5)
+            await asyncio.sleep(betting_seconds - close_warn)
+            await ws_manager.broadcast(channel, {"type": "closing", "round_id": round_id, "seconds_left": close_warn})
+            await asyncio.sleep(close_warn)
+            state["betting_open"] = False
             result = generate_wingo_result()
-            await db.game_rounds.insert_one({"id": round_id, "game": "wingo", "round_number": wingo_state["round_number"], "result": result, "status": "completed", "created_at": datetime.now(timezone.utc).isoformat()})
+            await db.game_rounds.insert_one({"id": round_id, "game": "wingo", "mode": mode, "round_number": state["round_number"], "result": result, "status": "completed", "created_at": datetime.now(timezone.utc).isoformat()})
             bets = await db.bets.find({"round_id": round_id, "game": "wingo", "status": "pending"}).to_list(1000)
             for bet in bets:
                 w = calc_wingo_winnings(bet, result)
                 if w > 0:
                     await db.users.update_one({"_id": ObjectId(bet["user_id"])}, {"$inc": {"balance": w, "total_won": w}})
                     await db.bets.update_one({"_id": bet["_id"]}, {"$set": {"status": "won", "winnings": round(w, 2)}})
+                    await check_achievements(bet["user_id"], "big_win", w)
                 else:
                     await db.bets.update_one({"_id": bet["_id"]}, {"$set": {"status": "lost", "winnings": 0}})
-            wingo_state["current_round"] = {"id": round_id, "round_number": wingo_state["round_number"], "status": "completed", "result": result}
-            await ws_manager.broadcast("wingo", {"type": "result", "round_id": round_id, "result": result, "round_number": wingo_state["round_number"]})
-            await asyncio.sleep(5)
+            state["current_round"] = {"id": round_id, "round_number": state["round_number"], "status": "completed", "result": result, "mode": mode}
+            await ws_manager.broadcast(channel, {"type": "result", "round_id": round_id, "result": result, "round_number": state["round_number"], "mode": mode})
+            await asyncio.sleep(pause)
         except Exception as e:
-            logger.error(f"WinGo loop error: {e}")
+            logger.error(f"WinGo {mode} loop error: {e}")
             await asyncio.sleep(5)
 
 async def aviator_loop():

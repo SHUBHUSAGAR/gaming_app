@@ -22,6 +22,10 @@ export default function Aviator() {
   const [history, setHistory] = useState([]);
   const [myBets, setMyBets] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [autoBet, setAutoBet] = useState(false);
+  const [stopWin, setStopWin] = useState(0);
+  const [stopLoss, setStopLoss] = useState(0);
+  const [autoCashout, setAutoCashout] = useState(2.0);
   const wsRef = useRef(null);
   const countdownRef = useRef(null);
 
@@ -209,29 +213,36 @@ export default function Aviator() {
 
           {/* Betting Controls */}
           <Card>
-            <CardContent className="p-4">
+            <CardContent className="p-4 space-y-3">
+              {/* Auto-bet toggle */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Auto-Bet</label>
+                <input type="checkbox" checked={autoBet} onChange={e => setAutoBet(e.target.checked)} className="accent-primary" data-testid="auto-bet-toggle" />
+                {autoBet && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <span className="text-[10px] text-muted-foreground">Stop Win:</span>
+                    <Input type="number" value={stopWin} onChange={e => setStopWin(Number(e.target.value))} className="w-16 h-6 font-mono text-[10px]" placeholder="0" data-testid="stop-win" />
+                    <span className="text-[10px] text-muted-foreground">Stop Loss:</span>
+                    <Input type="number" value={stopLoss} onChange={e => setStopLoss(Number(e.target.value))} className="w-16 h-6 font-mono text-[10px]" placeholder="0" data-testid="stop-loss" />
+                    <span className="text-[10px] text-muted-foreground">Auto Cashout:</span>
+                    <Input type="number" step="0.1" value={autoCashout} onChange={e => setAutoCashout(Number(e.target.value))} className="w-16 h-6 font-mono text-[10px]" placeholder="2.0" data-testid="auto-cashout" />
+                    <span className="text-[10px] text-muted-foreground">x</span>
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-                {/* Amount Selection */}
                 <div className="flex-1">
                   <p className="text-xs font-medium mb-2 text-muted-foreground">Bet Amount</p>
                   <div className="flex gap-1.5 flex-wrap">
                     {[50, 100, 200, 500, 1000, 2000].map(a => (
-                      <button
-                        key={a} onClick={() => setAmount(a)}
+                      <button key={a} onClick={() => setAmount(a)}
                         className={`rounded-full px-3 py-1 text-xs font-mono font-semibold border transition-all ${amount === a ? 'border-primary bg-primary text-primary-foreground scale-105' : 'border-border hover:border-primary/50'}`}
-                      >
-                        {a}
-                      </button>
+                      >{a}</button>
                     ))}
-                    <Input
-                      type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))}
-                      className="w-20 h-7 font-mono text-xs" min={10} max={10000}
-                      data-testid="aviator-amount"
-                    />
+                    <Input type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} className="w-20 h-7 font-mono text-xs" min={10} max={10000} data-testid="aviator-amount" />
                   </div>
                 </div>
-
-                {/* Action Button */}
                 <div className="sm:w-48">
                   {phase === 'waiting' && !activeBet && (
                     <Button onClick={placeBet} disabled={loading} className="w-full glow-gold font-bold text-base py-3" data-testid="aviator-bet-btn">
@@ -251,7 +262,7 @@ export default function Aviator() {
                   )}
                   {phase !== 'waiting' && !activeBet && (
                     <div className="text-center py-2 px-4 bg-muted rounded-lg">
-                      <p className="text-muted-foreground text-xs">Wait for next round</p>
+                      <p className="text-muted-foreground text-xs">{autoBet ? 'Auto-betting next round...' : 'Wait for next round'}</p>
                     </div>
                   )}
                 </div>

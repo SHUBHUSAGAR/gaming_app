@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, Gamepad2, Wallet, User } from 'lucide-react';
+import { Home, Gamepad2, Wallet, User, Gift } from 'lucide-react';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Home' },
   { path: '/games/wingo', icon: Gamepad2, label: 'Games' },
+  { path: '/daily-bonus', icon: Gift, label: 'Bonus' },
   { path: '/wallet', icon: Wallet, label: 'Wallet' },
   { path: '/profile', icon: User, label: 'Profile' },
 ];
