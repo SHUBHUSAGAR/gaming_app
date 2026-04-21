@@ -71,6 +71,28 @@ class AdminBalanceRequest(BaseModel):
     amount: float
     reason: str = ""
 
+class AnnouncementRequest(BaseModel):
+    title: str
+    message: str
+    type: str = "marquee"
+    active: bool = True
+
+class PromoCodeRequest(BaseModel):
+    code: str
+    bonus_type: str = "deposit_percent"
+    bonus_value: float = 10.0
+    min_deposit: float = 100.0
+    max_uses: int = 100
+    active: bool = True
+
+class GameSettingsRequest(BaseModel):
+    game_id: str
+    house_edge: Optional[float] = None
+    min_bet: Optional[float] = None
+    max_bet: Optional[float] = None
+    maintenance: Optional[bool] = None
+    status: Optional[str] = None
+
 # ========================
 # AUTH HELPERS
 # ========================
@@ -762,6 +784,156 @@ async def reject_withdrawal(txn_id: str, request: Request):
         await db.wallet_transactions.update_one({"id": txn_id}, {"$set": {"status": "rejected"}})
         await db.users.update_one({"_id": ObjectId(txn["user_id"]) if ObjectId.is_valid(txn["user_id"]) else None}, {"$inc": {"balance": txn["amount"]}})
     return {"message": "Withdrawal rejected, balance refunded"}
+
+# ========================
+# ANNOUNCEMENTS
+# ========================
+@api.get("/admin/announcements")
+async def get_announcements(request: Request):
+    await get_admin_user(request)
+    anns = await db.announcements.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return {"announcements": anns}
+
+@api.post("/admin/announcements")
+async def create_announcement(req: AnnouncementRequest, request: Request):
+    await get_admin_user(request)
+    doc = {"id": str(uuid.uuid4()), "title": req.title, "message": req.message, "type": req.type, "active": req.active, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.announcements.insert_one(doc)
+    doc.pop("_id", None)
+    return {"announcement": doc}
+
+@api.delete("/admin/announcements/{ann_id}")
+async def delete_announcement(ann_id: str, request: Request):
+    await get_admin_user(request)
+    await db.announcements.delete_one({"id": ann_id})
+    return {"message": "Deleted"}
+
+@api.put("/admin/announcements/{ann_id}/toggle")
+async def toggle_announcement(ann_id: str, request: Request):
+    await get_admin_user(request)
+    ann = await db.announcements.find_one({"id": ann_id})
+    if ann:
+        await db.announcements.update_one({"id": ann_id}, {"$set": {"active": not ann.get("active", True)}})
+    return {"message": "Toggled"}
+
+# ========================
+# PROMO CODES
+# ========================
+@api.get("/admin/promo-codes")
+async def get_promo_codes(request: Request):
+    await get_admin_user(request)
+    codes = await db.promo_codes.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return {"promo_codes": codes}
+
+@api.post("/admin/promo-codes")
+async def create_promo_code(req: PromoCodeRequest, request: Request):
+    await get_admin_user(request)
+    existing = await db.promo_codes.find_one({"code": req.code.upper()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Code already exists")
+    doc = {"id": str(uuid.uuid4()), "code": req.code.upper(), "bonus_type": req.bonus_type, "bonus_value": req.bonus_value, "min_deposit": req.min_deposit, "max_uses": req.max_uses, "used_count": 0, "active": req.active, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.promo_codes.insert_one(doc)
+    doc.pop("_id", None)
+    return {"promo_code": doc}
+
+@api.delete("/admin/promo-codes/{code_id}")
+async def delete_promo_code(code_id: str, request: Request):
+    await get_admin_user(request)
+    await db.promo_codes.delete_one({"id": code_id})
+    return {"message": "Deleted"}
+
+# ========================
+# GAME SETTINGS
+# ========================
+GAME_DEFAULTS = {
+    "wingo": {"house_edge": 2.0, "min_bet": 10, "max_bet": 10000, "maintenance": False, "status": "active"},
+    "aviator": {"house_edge": 3.2, "min_bet": 10, "max_bet": 10000, "maintenance": False, "status": "active"},
+    "abfun": {"house_edge": 2.0, "min_bet": 10, "max_bet": 10000, "maintenance": False, "status": "active"},
+    "luckyhit": {"house_edge": 2.0, "min_bet": 10, "max_bet": 10000, "maintenance": False, "status": "active"},
+    "soccergo": {"house_edge": 2.0, "min_bet": 10, "max_bet": 10000, "maintenance": False, "status": "active"},
+}
+
+@api.get("/admin/game-settings")
+async def get_game_settings(request: Request):
+    await get_admin_user(request)
+    settings = await db.game_settings.find({}, {"_id": 0}).to_list(10)
+    result = {**GAME_DEFAULTS}
+    for s in settings:
+        if s.get("game_id") in result:
+            result[s["game_id"]].update(s)
+    return {"settings": result}
+
+@api.post("/admin/game-settings")
+async def update_game_settings(req: GameSettingsRequest, request: Request):
+    await get_admin_user(request)
+    update_doc = {"game_id": req.game_id}
+    if req.house_edge is not None: update_doc["house_edge"] = req.house_edge
+    if req.min_bet is not None: update_doc["min_bet"] = req.min_bet
+    if req.max_bet is not None: update_doc["max_bet"] = req.max_bet
+    if req.maintenance is not None: update_doc["maintenance"] = req.maintenance
+    if req.status is not None: update_doc["status"] = req.status
+    await db.game_settings.update_one({"game_id": req.game_id}, {"$set": update_doc}, upsert=True)
+    return {"message": "Settings updated"}
+
+# ========================
+# KYC REVIEW
+# ========================
+@api.get("/admin/kyc-requests")
+async def get_kyc_requests(request: Request):
+    await get_admin_user(request)
+    users_needing_kyc = await db.users.find(
+        {"role": "player", "kyc_verified": False, "total_deposited": {"$gt": 0}},
+        {"password_hash": 0}
+    ).sort("total_deposited", -1).to_list(50)
+    for u in users_needing_kyc:
+        u["_id"] = str(u["_id"])
+    return {"kyc_requests": users_needing_kyc}
+
+@api.post("/admin/kyc/{user_id}/approve")
+async def approve_kyc(user_id: str, request: Request):
+    await get_admin_user(request)
+    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"kyc_verified": True}})
+    return {"message": "KYC approved"}
+
+@api.post("/admin/kyc/{user_id}/reject")
+async def reject_kyc(user_id: str, request: Request):
+    await get_admin_user(request)
+    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"kyc_verified": False, "kyc_rejected": True}})
+    return {"message": "KYC rejected"}
+
+# ========================
+# REPORTS
+# ========================
+@api.get("/admin/reports/overview")
+async def admin_reports(request: Request):
+    await get_admin_user(request)
+    total_users = await db.users.count_documents({"role": "player"})
+    active_today = await db.users.count_documents({"role": "player", "last_login": {"$gte": datetime.now(timezone.utc).replace(hour=0, minute=0, second=0).isoformat()}})
+    total_deposits_pipeline = [{"$match": {"type": "deposit", "status": "completed"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}}}]
+    dep_result = await db.wallet_transactions.aggregate(total_deposits_pipeline).to_list(1)
+    total_deposits_amount = dep_result[0]["total"] if dep_result else 0
+    total_withdrawals_pipeline = [{"$match": {"type": "withdrawal"}}, {"$group": {"_id": None, "total": {"$sum": "$amount"}}}]
+    wd_result = await db.wallet_transactions.aggregate(total_withdrawals_pipeline).to_list(1)
+    total_withdrawals_amount = wd_result[0]["total"] if wd_result else 0
+    bet_pipeline = [{"$group": {"_id": None, "total_wagered": {"$sum": "$amount"}, "total_won": {"$sum": "$winnings"}, "count": {"$sum": 1}}}]
+    bet_result = await db.bets.aggregate(bet_pipeline).to_list(1)
+    bet_data = bet_result[0] if bet_result else {"total_wagered": 0, "total_won": 0, "count": 0}
+    game_pipeline = [{"$group": {"_id": "$game", "bets": {"$sum": 1}, "wagered": {"$sum": "$amount"}, "won": {"$sum": "$winnings"}}}]
+    game_breakdown = await db.bets.aggregate(game_pipeline).to_list(10)
+    pending_wd = await db.wallet_transactions.count_documents({"type": "withdrawal", "status": "pending"})
+    return {
+        "total_users": total_users, "active_today": active_today,
+        "total_deposits": total_deposits_amount, "total_withdrawals": total_withdrawals_amount,
+        "total_wagered": bet_data["total_wagered"], "total_won_by_players": bet_data["total_won"],
+        "platform_revenue": bet_data["total_wagered"] - bet_data["total_won"],
+        "total_bets": bet_data["count"], "game_breakdown": game_breakdown, "pending_withdrawals": pending_wd
+    }
+
+@api.get("/admin/pending-withdrawals")
+async def pending_withdrawals(request: Request):
+    await get_admin_user(request)
+    txns = await db.wallet_transactions.find({"type": "withdrawal", "status": "pending"}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"withdrawals": txns}
 
 # ========================
 # WEBSOCKET ENDPOINTS
