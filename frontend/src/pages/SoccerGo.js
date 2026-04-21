@@ -7,6 +7,7 @@ import LiveBetsPanel from '../components/LiveBetsPanel';
 import { ArrowLeft, Dice5 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useSound } from '../contexts/SoundContext';
 
 const AMOUNTS = [10, 50, 100, 500, 1000];
 const DICE_FACES = ['', '\u2680', '\u2681', '\u2682', '\u2683', '\u2684', '\u2685'];
@@ -34,6 +35,7 @@ function DiceDisplay({ rolls, goals, label, isWinner }) {
 
 export default function SoccerGo() {
   const { refreshUser } = useAuth();
+  const sound = useSound();
   const [betType, setBetType] = useState('winner');
   const [betValue, setBetValue] = useState('');
   const [amount, setAmount] = useState(100);
@@ -51,8 +53,9 @@ export default function SoccerGo() {
       setTimeout(() => {
         setResult(data.result);
         setWinnings(data.winnings);
-        if (data.winnings > 0) toast.success(`You won ${formatINR(data.winnings)}!`);
-        else toast.error('Better luck next time!');
+        sound.diceRoll();
+        if (data.winnings > 0) { sound.win(); toast.success(`You won ${formatINR(data.winnings)}!`); }
+        else { sound.lose(); toast.error('Better luck next time!'); }
         refreshUser();
       }, 700);
     } catch (err) {

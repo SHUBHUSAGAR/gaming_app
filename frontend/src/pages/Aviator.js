@@ -9,6 +9,7 @@ import LiveBetsPanel from '../components/LiveBetsPanel';
 import { ArrowLeft, Plane, Volume2, VolumeX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useSound } from '../contexts/SoundContext';
 
 export default function Aviator() {
   const { refreshUser } = useAuth();
@@ -28,6 +29,8 @@ export default function Aviator() {
   const [autoCashout, setAutoCashout] = useState(2.0);
   const wsRef = useRef(null);
   const countdownRef = useRef(null);
+  const sound = useSound();
+  const tickCountRef = useRef(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -62,10 +65,13 @@ export default function Aviator() {
         setCountdown(0);
       } else if (msg.type === 'tick') {
         setMultiplier(msg.multiplier);
+        tickCountRef.current++;
+        if (tickCountRef.current % 20 === 0) sound.multiplierTick();
       } else if (msg.type === 'crashed') {
         setPhase('crashed');
         setCrashPoint(msg.crash_point);
         setMultiplier(msg.crash_point);
+        sound.crash();
         if (activeBet && !activeBet.cashed_out) setActiveBet(null);
         loadData();
         refreshUser();
@@ -79,6 +85,7 @@ export default function Aviator() {
     try {
       const { data } = await API.post('/games/aviator/bet', { amount });
       setActiveBet(data.bet);
+      sound.betPlaced();
       toast.success(`Bet placed: ${formatINR(amount)}`);
       refreshUser();
     } catch (err) {
@@ -93,6 +100,7 @@ export default function Aviator() {
     setLoading(true);
     try {
       const { data } = await API.post('/games/aviator/cashout', { bet_id: activeBet.id });
+      sound.cashout();
       toast.success(`Cashed out at ${data.multiplier}x! Won ${formatINR(data.winnings)}`);
       setActiveBet({ ...activeBet, cashed_out: true, cashout_multiplier: data.multiplier });
       refreshUser();

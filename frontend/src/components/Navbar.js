@@ -1,14 +1,16 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSound } from '../contexts/SoundContext';
 import { formatINR } from '../lib/api';
-import { Sun, Moon, Wallet, LogOut, Shield, User, ChevronDown } from 'lucide-react';
+import { Sun, Moon, Wallet, LogOut, Shield, User, ChevronDown, Volume2, VolumeX } from 'lucide-react';
 import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { muted, toggleMute } = useSound();
   const navigate = useNavigate();
 
   if (!user || user === false) return null;
@@ -30,6 +32,10 @@ export default function Navbar() {
               <span className="balance-display text-sm font-semibold">{formatINR(user.balance)}</span>
             </div>
           </Link>
+
+          <Button variant="ghost" size="icon" onClick={toggleMute} className="h-8 w-8" data-testid="sound-toggle">
+            {muted ? <VolumeX className="w-4 h-4 text-muted-foreground" /> : <Volume2 className="w-4 h-4 text-primary" />}
+          </Button>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8" data-testid="theme-toggle">
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}

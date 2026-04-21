@@ -8,11 +8,13 @@ import { ArrowLeft, Gift, Flame, Star, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { useSound } from '../contexts/SoundContext';
 
 const DAY_LABELS = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
 
 export default function DailyBonus() {
   const { refreshUser } = useAuth();
+  const sound = useSound();
   const [status, setStatus] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [spinning, setSpinning] = useState(false);
@@ -28,6 +30,7 @@ export default function DailyBonus() {
     setClaiming(true);
     try {
       const { data } = await API.post('/bonus/claim-daily');
+      sound.deposit();
       toast.success(data.message);
       refreshUser();
       setStatus(s => ({ ...s, streak: data.streak, claimed_today: true }));
@@ -46,11 +49,13 @@ export default function DailyBonus() {
       const segAngle = 360 / data.segments.length;
       const targetAngle = 360 * 5 + (360 - data.segment * segAngle - segAngle / 2);
       setWheelAngle(targetAngle);
+      // Play tick sounds during spin
+      for (let i = 0; i < 15; i++) { setTimeout(() => sound.spinTick(), i * 250); }
       setTimeout(() => {
         setSpinResult(data);
         setSpinning(false);
-        if (data.prize > 0) toast.success(`Won ${formatINR(data.prize)}!`);
-        else toast('Try again tomorrow!');
+        if (data.prize > 0) { sound.bigWin(); toast.success(`Won ${formatINR(data.prize)}!`); }
+        else { sound.lose(); toast('Try again tomorrow!'); }
         refreshUser();
         setStatus(s => ({ ...s, spin_available: false }));
       }, 4000);

@@ -7,6 +7,7 @@ import LiveBetsPanel from '../components/LiveBetsPanel';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useSound } from '../contexts/SoundContext';
 
 const AMOUNTS = [10, 50, 100, 500, 1000];
 const SUIT_SYMBOLS = { hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663', spades: '\u2660' };
@@ -25,6 +26,7 @@ function PlayingCard({ card, highlight = false }) {
 
 export default function ABFun() {
   const { refreshUser } = useAuth();
+  const sound = useSound();
   const [betValue, setBetValue] = useState('');
   const [amount, setAmount] = useState(100);
   const [result, setResult] = useState(null);
@@ -42,8 +44,9 @@ export default function ABFun() {
       setTimeout(() => {
         setResult(data.result);
         setWinnings(data.winnings);
-        if (data.winnings > 0) toast.success(`You won ${formatINR(data.winnings)}!`);
-        else toast.error('Better luck next time!');
+        sound.cardFlip();
+        if (data.winnings > 0) { sound.win(); toast.success(`You won ${formatINR(data.winnings)}!`); }
+        else { sound.lose(); toast.error('Better luck next time!'); }
         setGameHistory(prev => [{ result: data.result, bet: betValue, winnings: data.winnings }, ...prev].slice(0, 10));
         refreshUser();
       }, 800);

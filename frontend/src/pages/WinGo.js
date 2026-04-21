@@ -9,6 +9,7 @@ import LiveBetsPanel from '../components/LiveBetsPanel';
 import { ArrowLeft, Timer } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useSound } from '../contexts/SoundContext';
 
 const AMOUNTS = [10, 50, 100, 500, 1000];
 const COLORS = [
@@ -48,6 +49,7 @@ export default function WinGo() {
   const [lastResult, setLastResult] = useState(null);
   const wsRef = useRef(null);
   const timerRef = useRef(null);
+  const sound = useSound();
 
   const loadHistory = useCallback(async () => {
     try {
@@ -76,6 +78,7 @@ export default function WinGo() {
         setLastResult(null);
       } else if (msg.type === 'closing') {
         setTimer(msg.seconds_left || 5);
+        sound.timerWarning();
       } else if (msg.type === 'result') {
         setBettingOpen(false);
         setLastResult(msg.result);
@@ -93,6 +96,7 @@ export default function WinGo() {
     setLoading(true);
     try {
       await API.post(`/games/wingo/bet?mode=${mode}`, { round_id: round.id, bet_type: betType, bet_value: betValue, amount });
+      sound.betPlaced();
       toast.success(`Bet placed: ${betType} = ${betValue}`);
       refreshUser();
       loadHistory();

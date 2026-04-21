@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SoundProvider } from './contexts/SoundContext';
 import { Toaster } from './components/ui/sonner';
 import Navbar from './components/Navbar';
 import BottomNav from './components/BottomNav';
@@ -76,9 +77,11 @@ function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
+        <SoundProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </SoundProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
